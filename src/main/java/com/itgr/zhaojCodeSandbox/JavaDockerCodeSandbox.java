@@ -12,6 +12,7 @@ import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.itgr.zhaojCodeSandbox.model.ExecuteCodeRequest;
 import com.itgr.zhaojCodeSandbox.model.ExecuteCodeResponse;
 import com.itgr.zhaojCodeSandbox.model.ExecuteMessage;
+import org.springframework.stereotype.Component;
 
 import java.io.Closeable;
 import java.io.File;
@@ -26,25 +27,26 @@ import java.util.concurrent.TimeUnit;
  * Java 代码沙箱模板方法的实现
  * @author ygking
  */
+@Component
 public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
 
     private static final long TIME_OUT = 5000L;
 
     public static final boolean FIRST_INIT = true;
 
-
-    public static void main(String[] args) {
-        JavaDockerCodeSandbox javaNativeCodeSandbox = new JavaDockerCodeSandbox();
-        ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
-        executeCodeRequest.setInputList(Arrays.asList("1 2", "1 3"));
-//        String code = ResourceUtil.readStr("testCode/simpleComputeArgs/Main.java", StandardCharsets.UTF_8);
-//        String code = ResourceUtil.readStr("testCode/unsafeCode/RunFileError.java", StandardCharsets.UTF_8);
-        String code = ResourceUtil.readStr("testCode/simpleCompute/Main.java", StandardCharsets.UTF_8);
-        executeCodeRequest.setCode(code);
-        executeCodeRequest.setLanguage("java");
-        ExecuteCodeResponse executeCodeResponse = javaNativeCodeSandbox.executeCode(executeCodeRequest);
-        System.out.println(executeCodeResponse);
-    }
+//
+//    public static void main(String[] args) {
+//        JavaDockerCodeSandbox javaNativeCodeSandbox = new JavaDockerCodeSandbox();
+//        ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
+//        executeCodeRequest.setInputList(Arrays.asList("1 2", "1 3"));
+////        String code = ResourceUtil.readStr("testCode/simpleComputeArgs/Main.java", StandardCharsets.UTF_8);
+////        String code = ResourceUtil.readStr("testCode/unsafeCode/RunFileError.java", StandardCharsets.UTF_8);
+//        String code = ResourceUtil.readStr("testCode/simpleCompute/Main.java", StandardCharsets.UTF_8);
+//        executeCodeRequest.setCode(code);
+//        executeCodeRequest.setLanguage("java");
+//        ExecuteCodeResponse executeCodeResponse = javaNativeCodeSandbox.executeCode(executeCodeRequest);
+//        System.out.println(executeCodeResponse);
+//    }
 
     /**
      *  3.把编译好的文件上传到 docker 容器环境内
@@ -103,7 +105,7 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
         String containerId = createContainerResponse.getId();
 
         // 4.启动容器
-        dockerClient.createContainerCmd(containerId).exec();
+        dockerClient.startContainerCmd(containerId).exec();
 
         // 执行命令并获取结果
         List<ExecuteMessage> executeMessageList = new ArrayList<>();    //获取执行列表

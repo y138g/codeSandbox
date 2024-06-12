@@ -56,7 +56,8 @@ public class ProcessUtils {
                 executeMessage.setMessage(StringUtils.join(outputStrList, "\n"));
 
                 // 分批获取进程的错误输出
-                BufferedReader errorBufferedReader = new BufferedReader(new InputStreamReader(runProcess.getErrorStream()));
+                BufferedReader errorBufferedReader =
+                        new BufferedReader(new InputStreamReader(runProcess.getErrorStream()));
                 // 逐行读取
                 List<String> errorOutputStrList = new ArrayList<>();
                 // 逐行读取
