@@ -1,7 +1,6 @@
 package com.itgr.zhaojCodeSandbox;
 
 import cn.hutool.core.date.StopWatch;
-import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.ArrayUtil;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
@@ -9,8 +8,6 @@ import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
-import com.itgr.zhaojCodeSandbox.model.ExecuteCodeRequest;
-import com.itgr.zhaojCodeSandbox.model.ExecuteCodeResponse;
 import com.itgr.zhaojCodeSandbox.model.ExecuteMessage;
 import org.springframework.stereotype.Component;
 
@@ -19,12 +16,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Java 代码沙箱模板方法的实现
+ *
  * @author ygking
  */
 @Component
@@ -34,22 +32,9 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
 
     public static final boolean FIRST_INIT = true;
 
-//
-//    public static void main(String[] args) {
-//        JavaDockerCodeSandbox javaNativeCodeSandbox = new JavaDockerCodeSandbox();
-//        ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
-//        executeCodeRequest.setInputList(Arrays.asList("1 2", "1 3"));
-////        String code = ResourceUtil.readStr("testCode/simpleComputeArgs/Main.java", StandardCharsets.UTF_8);
-////        String code = ResourceUtil.readStr("testCode/unsafeCode/RunFileError.java", StandardCharsets.UTF_8);
-//        String code = ResourceUtil.readStr("testCode/simpleCompute/Main.java", StandardCharsets.UTF_8);
-//        executeCodeRequest.setCode(code);
-//        executeCodeRequest.setLanguage("java");
-//        ExecuteCodeResponse executeCodeResponse = javaNativeCodeSandbox.executeCode(executeCodeRequest);
-//        System.out.println(executeCodeResponse);
-//    }
-
     /**
-     *  3.把编译好的文件上传到 docker 容器环境内
+     * 3.把编译好的文件上传到 docker 容器环境内
+     *
      * @param userCodeFile
      * @param inputList
      * @param userCodeParentPath
@@ -156,6 +141,7 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
             };
 
             final long[] maxMemory = {0L};
+            final CountDownLatch latch = new CountDownLatch(1);
 
             // 获取内存占用
             StatsCmd statsCmd = dockerClient.statsCmd(containerId);
@@ -164,7 +150,13 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
                 @Override
                 public void onNext(Statistics statistics) {
                     System.out.println("内存占用：" + statistics.getMemoryStats().getUsage());
-                    maxMemory[0] = Math.max(statistics.getMemoryStats().getUsage(), maxMemory[0]);
+                    Long usage = statistics.getMemoryStats().getUsage();
+                    if (usage != null) {
+                        synchronized (maxMemory) {
+                            maxMemory[0] = Math.max(usage, maxMemory[0]);
+                        }
+                        latch.countDown(); // 内存获取完成后释放锁
+                    }
                 }
 
                 @Override
@@ -174,7 +166,8 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
 
                 @Override
                 public void onError(Throwable throwable) {
-
+                    throwable.printStackTrace();
+                    latch.countDown(); // 出现错误时释放锁
                 }
 
                 @Override
@@ -187,7 +180,9 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
 
                 }
             });
+
             statsCmd.exec(statisticsResultCallback);
+
             try {
                 stopWatch.start();
                 dockerClient.execStartCmd(execId)
@@ -195,16 +190,25 @@ public class JavaDockerCodeSandbox extends JavaCodeSandboxTemplate {
                         .awaitCompletion(TIME_OUT, TimeUnit.MICROSECONDS);
                 stopWatch.stop();
                 time = stopWatch.getLastTaskTimeMillis();
-                statsCmd.close();
+                latch.await(); // 等待内存统计完成
             } catch (InterruptedException e) {
                 System.out.println("错误信息：" + e.getMessage());
                 throw new RuntimeException(e);
+            } finally {
+                statsCmd.close();
             }
             executeMessage.setMessage(message[0]);
             executeMessage.setErrorMessage(errorMessage[0]);
             executeMessage.setTime(time);
             executeMessage.setMemory(maxMemory[0]);
             executeMessageList.add(executeMessage);
+        }
+        // 确保在所有操作完成后停止和移除容器
+        try {
+            dockerClient.stopContainerCmd(containerId).exec();
+            dockerClient.removeContainerCmd(containerId).exec();
+        } catch (Exception e) {
+            System.out.println("清理容器时出错：" + e.getMessage());
         }
         return executeMessageList;
     }

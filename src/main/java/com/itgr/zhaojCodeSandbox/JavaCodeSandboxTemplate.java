@@ -18,6 +18,7 @@ import java.util.List;
 
 /**
  * Java 代码沙箱模板方法
+ *
  * @author ygking
  */
 @Slf4j
@@ -53,8 +54,8 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
 
         // 5. 文件清理
         boolean result = clearFile(fileResponse);
-        if (!result){
-            log.error("deleteFile error, userCodeFilePath = {}",fileResponse.getUserCodeFile().getAbsolutePath());
+        if (!result) {
+            log.error("deleteFile error, userCodeFilePath = {}", fileResponse.getUserCodeFile().getAbsolutePath());
         }
         return outputResponse;
     }
@@ -87,7 +88,6 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
 
     /**
      * 2.编译代码，得到 class 文件
-     *
      * @param userCodeFile 用户代码文件
      * @return 编译后文件
      */
@@ -109,7 +109,6 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
 
     /**
      * 3.执行文件获得执行结果列表
-     *
      * @param userCodeFile
      * @param inputList
      * @param userCodeParentPath
@@ -153,6 +152,7 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
         List<String> outputList = new ArrayList<>();
         // 取用时最大值，便于判断是否超时
         long maxTime = 0;
+        long maxMemory = 0;
         for (ExecuteMessage executeMessage : executeMessageList) {
             String errorMessage = executeMessage.getErrorMessage();
             if (StrUtil.isNotBlank(errorMessage)) {
@@ -166,6 +166,10 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
             if (time != null) {
                 maxTime = Math.max(maxTime, time);
             }
+            Long memory = executeMessage.getMemory();
+            if (memory != null) {
+                maxMemory = Math.max(maxMemory, memory);
+            }
         }
         // 正常运行完成
         if (outputList.size() == executeMessageList.size()) {
@@ -174,6 +178,7 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
         executeCodeResponse.setOutputList(outputList);
         JudgeInfo judgeInfo = new JudgeInfo();
         judgeInfo.setTime(maxTime);
+        judgeInfo.setMemory(maxMemory);
         executeCodeResponse.setJudgeInfo(judgeInfo);
         return executeCodeResponse;
     }
@@ -183,7 +188,7 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
      * @param fileResponse
      * @return
      */
-    public boolean clearFile(FileResponse fileResponse){
+    public boolean clearFile(FileResponse fileResponse) {
         if (fileResponse.getUserCodeFile().getParentFile() != null) {
             boolean del = FileUtil.del(fileResponse.getUserCodeParentPath());
             System.out.println("删除" + (del ? "成功" : "失败"));
@@ -194,7 +199,6 @@ public abstract class JavaCodeSandboxTemplate implements CodeSandbox {
 
     /**
      * 6.获取错误响应
-     *
      * @param e
      * @return
      */
